@@ -206,6 +206,17 @@ public class JDBCUtil {
         return (schema == null || schema.equals("")) ? defaultValue : schema;
     }
 
+    public static boolean getExclusivePhoenixMetaUpgradeEnabled(String url, Properties info,
+            boolean defaultValue) {
+                String exMetaUpgrade = findProperty(url, info,
+                PhoenixRuntime.ENABLE_EXCLUSIVE_PHOENIXDB_META_UPGRADE_ATTRIB);
+        if (exMetaUpgrade == null) {
+            return defaultValue;
+        }
+        return Boolean.valueOf(exMetaUpgrade);
+    }
+
+
     /**
      * Get the ZK quorom and root and node part of the URL, which is used by the HA code internally
      * to identify the clusters.
