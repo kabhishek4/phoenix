@@ -671,7 +671,7 @@ public class SystemTablesCreationOnConnectionIT {
      * @return Phoenix connection string
      */
     private String getJdbcUrl() {
-        return "jdbc:phoenix:localhost:" + testUtil.getZkCluster().getClientPort() + ":/hbase";
+        return "jdbc:phoenix:localhost:" + testUtil.getZkCluster().getClientPort() + ":/hbase;ExclusiveMetaUpgrade=true";
     }
 
     /**

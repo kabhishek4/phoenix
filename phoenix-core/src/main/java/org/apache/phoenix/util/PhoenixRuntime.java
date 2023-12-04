@@ -273,6 +273,13 @@ public class PhoenixRuntime {
             PhoenixStatement.EXPLAIN_PLAN_ESTIMATE_INFO_TS_COLUMN_ALIAS;
 
     /**
+     * Internal connection property to enforce exclusive upgrade of Phoenix Metadata
+     * by a client.
+     */
+    public static final String ENABLE_EXCLUSIVE_PHOENIXDB_META_UPGRADE_ATTRIB =
+        "ExclusiveMetaUpgrade";
+
+    /**
      * All Phoenix specific connection properties
      * TODO: use enum instead
      */
@@ -283,6 +290,7 @@ public class PhoenixRuntime {
             AUTO_COMMIT_ATTRIB,
             CONSISTENCY_ATTRIB,
             REQUEST_METRIC_ATTRIB,
+            ENABLE_EXCLUSIVE_PHOENIXDB_META_UPGRADE_ATTRIB,
             };
 
     /**

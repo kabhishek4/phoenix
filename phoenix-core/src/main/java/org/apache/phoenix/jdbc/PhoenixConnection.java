@@ -185,6 +185,7 @@ public class PhoenixConnection implements MetaDataMutated, SQLCloseable, Phoenix
     private LogLevel auditLogLevel;
     private Double logSamplingRate;
     private String sourceOfOperation;
+    private boolean isExclusiveMetaUpgrade;
     private volatile SQLException reasonForClose;
     private static final String[] CONNECTION_PROPERTIES;
 
@@ -220,6 +221,7 @@ public class PhoenixConnection implements MetaDataMutated, SQLCloseable, Phoenix
         this.isAutoFlush = connection.isAutoFlush;
         this.sampler = connection.sampler;
         this.statementExecutionCounter = connection.statementExecutionCounter;
+        this.isExclusiveMetaUpgrade = connection.isExclusiveMetaUpgrade;
     }
 
     public PhoenixConnection(PhoenixConnection connection) throws SQLException {
@@ -248,6 +250,7 @@ public class PhoenixConnection implements MetaDataMutated, SQLCloseable, Phoenix
         this.isAutoFlush = connection.isAutoFlush;
         this.sampler = connection.sampler;
         this.statementExecutionCounter = connection.statementExecutionCounter;
+        this.isExclusiveMetaUpgrade = connection.isExclusiveMetaUpgrade;
     }
 
     public PhoenixConnection(ConnectionQueryServices services, String url,
@@ -267,7 +270,7 @@ public class PhoenixConnection implements MetaDataMutated, SQLCloseable, Phoenix
             Properties info, MutationState mutationState,
             boolean isDescVarLengthRowKeyUpgrade, boolean isRunningUpgrade,
             boolean buildingIndex, boolean isInternalConnection) throws SQLException {
-            this.url = url;
+            this.url = url + ";ExclusiveMetaUpgrade=true";
             this.isDescVarLengthRowKeyUpgrade = isDescVarLengthRowKeyUpgrade;
             this.isInternalConnection = isInternalConnection;
 
@@ -419,6 +422,12 @@ public class PhoenixConnection implements MetaDataMutated, SQLCloseable, Phoenix
             }
         this.sourceOfOperation = this.services.getProps()
             .get(QueryServices.SOURCE_OPERATION_ATTRIB, null);
+
+        this.isExclusiveMetaUpgrade = JDBCUtil.getExclusivePhoenixMetaUpgradeEnabled(
+            url,
+            this.info,
+            QueryServicesOptions.DEFAULT_ENABLE_EXCLUSIVE_PHOENIXDB_METADATA_UPGRADE);
+
     }
 
     private static void checkScn(Long scnParam) throws SQLException {
@@ -1485,4 +1494,5 @@ public class PhoenixConnection implements MetaDataMutated, SQLCloseable, Phoenix
     public void setActivityLogger(ConnectionActivityLogger connectionActivityLogger) {
         this.connectionActivityLogger = connectionActivityLogger;
     }
+    public boolean getExclusiveMetaUpgradeEnabled() {return isExclusiveMetaUpgrade; }
 }

@@ -4184,6 +4184,8 @@ public class ConnectionQueryServicesImpl extends DelegateQueryServices implement
         boolean acquiredMutexLock = false;
         boolean moveChildLinks = false;
         boolean syncAllTableAndIndexProps = false;
+        boolean exclusiveMetaUpgradeLock = false;
+        boolean metaUpgradeEnabled = false;
         try {
             if (!isUpgradeRequired()) {
                 throw new UpgradeNotRequiredException();
@@ -4192,7 +4194,8 @@ public class ConnectionQueryServicesImpl extends DelegateQueryServices implement
             scnProps.setProperty(PhoenixRuntime.CURRENT_SCN_ATTRIB,
                     Long.toString(MetaDataProtocol.MIN_SYSTEM_TABLE_TIMESTAMP));
             scnProps.remove(PhoenixRuntime.TENANT_ID_ATTRIB);
-            String globalUrl = JDBCUtil.removeProperty(url, PhoenixRuntime.TENANT_ID_ATTRIB);
+            String myUrl = url + ";ExclusiveMetaUpgrade=true";
+            String globalUrl = JDBCUtil.removeProperty(myUrl, PhoenixRuntime.TENANT_ID_ATTRIB);
             metaConnection = new PhoenixConnection(ConnectionQueryServicesImpl.this, globalUrl,
                     scnProps);
             metaConnection.setRunningUpgrade(true);
@@ -4248,7 +4251,6 @@ public class ConnectionQueryServicesImpl extends DelegateQueryServices implement
                         LOGGER.debug("Migrated SYSTEM tables to SYSTEM namespace");
                     }
                 }
-
                 metaConnection = upgradeSystemCatalogIfRequired(metaConnection, currentServerSideTableTimeStamp);
                 if (currentServerSideTableTimeStamp < MIN_SYSTEM_TABLE_TIMESTAMP_4_15_0) {
                     moveChildLinks = true;
@@ -4267,6 +4269,14 @@ public class ConnectionQueryServicesImpl extends DelegateQueryServices implement
                                 "id collision. Error: " + mergeViewIndeIdException.getMessage());
                     }
                 }
+            }
+
+            //Insert a record in SYSTEM.MUTEX table indicating that upgrade to be executed
+            // in exclusive mode
+            metaUpgradeEnabled = metaConnection.getExclusiveMetaUpgradeEnabled();
+            if (metaUpgradeEnabled) {
+                exclusiveMetaUpgradeLock = enableExclusivePhoenixMetaUpgrade(
+                    MetaDataProtocol.MIN_SYSTEM_TABLE_MIGRATION_TIMESTAMP);
             }
 
             // pass systemTableToSnapshotMap to capture more system table to
@@ -4325,6 +4335,13 @@ public class ConnectionQueryServicesImpl extends DelegateQueryServices implement
                         releaseUpgradeMutex();
                     } catch (IOException e) {
                         LOGGER.warn("Release of upgrade mutex failed ", e);
+                    }
+                }
+                if (metaUpgradeEnabled && exclusiveMetaUpgradeLock) {
+                    try {
+                        disableExclusivePhoenixMetaUpgrade();
+                    } catch (IOException e) {
+                        LOGGER.warn("Release of exclusive metadata upgrade mutex failed ", e);
                     }
                 }
                 if (toThrow != null) {
@@ -6202,5 +6219,29 @@ public class ConnectionQueryServicesImpl extends DelegateQueryServices implement
     @VisibleForTesting
     public List<LinkedBlockingQueue<WeakReference<PhoenixConnection>>> getCachedConnections() {
       return connectionQueues;
+    }
+
+    /**
+     * Acquire lock to make sure only one client is able to run the upgrade
+     *
+     * @return true if client won the race, false otherwise
+     * @throws SQLException
+     */
+    @VisibleForTesting
+    public boolean enableExclusivePhoenixMetaUpgrade(long currentServerSideTableTimestamp)
+        throws SQLException {
+        Preconditions.checkArgument(currentServerSideTableTimestamp < MIN_SYSTEM_TABLE_TIMESTAMP);
+        if (!writeMutexCell(null, PhoenixDatabaseMetaData.SYSTEM_CATALOG_SCHEMA,
+            PhoenixDatabaseMetaData.SYSTEM_MUTEX_TABLE_NAME, null, null)) {
+            throw new UpgradeInProgressException(getVersion(currentServerSideTableTimestamp),
+                getVersion(MIN_SYSTEM_TABLE_TIMESTAMP));
+        }
+        return true;
+    }
+
+    @VisibleForTesting
+    public void disableExclusivePhoenixMetaUpgrade() throws IOException, SQLException {
+        deleteMutexCell(null, PhoenixDatabaseMetaData.SYSTEM_CATALOG_SCHEMA,
+            PhoenixDatabaseMetaData.SYSTEM_MUTEX_TABLE_NAME, null, null);
     }
 }
